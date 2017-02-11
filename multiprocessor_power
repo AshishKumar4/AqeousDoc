@@ -1,0 +1,42 @@
+Harnessing the Power of Multiple CPU/CPU Cores within a System:
+The Aqeous-OS has got a Symmetric Multiprocessing System (SMP System) Implemented.
+Each Independent Processor/Core has got its own independent Scheduler and Interrupt Handling via their own LAPICs coordinated by IOAPICs.
+The Schedulers are created during runtime in Dynamic Memory. A Template Scheduler and assisting Systems are made in Assembly and C tailored
+during the compile time. These are copied into new memory regions and modified accordingly to grant each Scheduler its unique Local and Global
+Variables and access to Specific structures which define the identity of the Core the scheduler is dedicated to. 
+The Templates written in C/ASM have MAGIC NUMBERS in place where global variables should have been used. These Magic Numbers are replaced
+by the addresses of the Specific global variables for the specific core like address of the specific Scheduling Queue or current running task etc.
+These Magic Numbers are replaced BYTE by BYTE through out the templates with the respective addresses.
+
+The Aqeous OS uses a Multilevel Feedback Queing Scheduling Algorithm wherein Multiple adjacent queues are made in memory and threads/tasks
+fall down to the bottom queue from their assigned queues based on the time they spent on the CPU.
+The Scheduler function is defined such that the performance Characteristics are as:
+Best Case: O(1)
+Worst Case: O(A) where A is a const.
+Average: O(1)
+In 90% of the time A is equal to 1. at max A can be upto 2-3. Thanks to the dedicated Scheduler Assistance System (SAS) and the intelligent design 
+of the algorithm. More on the Scheduler in dedicated Chapter!
+
+There are 2 types of processors in an MP System, The BootStrap Processor (BSP), which is the core which bootsup the system and runs the kernel
+as if the system was a single processor system; and the Application Processor (AP), which are the other cores of the system, which we have to 
+bootup using special AP Bootup Sequence and Trapolines to put it into Scheduling.
+
+In Aqeous-OS, AP Bootup is done as following:
+1. Copy and Setup the Bootup Sequence and associated functions which would bootup the AP to seperate memory locations within the 4MB of the System.
+2. Setup IDT, GDTs within dedicated memory regions for each core within the 4MB.
+3. Send INIT-IPI and INIT-SIPI to each core indivisually using LAPIC of the BSP.
+This makes the AP execute the bootup code->
+1. Initialize the Descriptors
+2. Setup a temporary Stack
+3. put 0x10 in cr0 register
+4. Setup IDTR and GDTR.
+5. put 0x1 in cr0 register to enter protected mode.
+6. Setup the Descriptors according to the GDT Entries.
+7. Increment a counter to tell the BSP that the AP has initialized.
+8. Long Jump to a random memory location to get a General Protection Fault. The IDT was initially setup such that it would throw the CPU
+   to a Interrupt Trampoline to complete the bootup.
+9. The Interrupt Trampoline sets up rest of the things and redirects each core to its respective Startup Code specially prepared for that Core.
+10. The Startup Code makes the core just wait 'hang around' doing stuffs like initializing APIC LVT timer and Paging etc until the BSP has done
+    initializing the kernel and the Schedulers for each core are ready to drive. The Startup code would then make a sotfware interrupt and put the core
+    on the specific scheduler using its IDT entry which got modifies while making the scheduler for the core.
+VOILA!!! The SMP System is ready to go!
